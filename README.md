@@ -1,4 +1,4 @@
-# Pool - Test project
+# Poll - Test project
 
 Try running some of the following tasks:
 
