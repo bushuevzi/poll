@@ -1,4 +1,4 @@
-import { expect, assert } from "chai";
+import { expect } from "chai";
 import { Contract, Signer } from "ethers";
 import { ethers } from "hardhat";
 

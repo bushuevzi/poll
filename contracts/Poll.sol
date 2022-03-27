@@ -1,5 +1,6 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
+import "hardhat/console.sol";
 
 contract Poll {
     struct PollMeta{
@@ -20,12 +21,17 @@ contract Poll {
 
     address public owner;
     uint public voteCost = 0.01 ether;
-    uint public comission = 10;
+    uint public comissionTax = 10;
     mapping (string => PollFullInfo) public polls;
     string[] private pollsLUT;
 
     constructor() {
         owner = msg.sender;
+    }
+
+    function kill() external {
+        require(msg.sender == owner, "Only the owner can kill this contract");
+        selfdestruct(payable(owner));
     }
 
     function createPoll(string memory pollName, uint startTime) public {
@@ -40,17 +46,17 @@ contract Poll {
         require(msg.sender == owner, "You should be contract owner");
         require(polls[pollName].meta.startTime > 0, "Poll not found");
         require(polls[pollName].meta.isFinished == true, "Poll not finished");
-        require(polls[pollName].meta.comission == 0, "Comission is empty");
+        require(polls[pollName].meta.comission > 0, "Comission is empty");
         require(polls[pollName].meta.isComissionWidsdrawed == false, "Comission was already widthdraw");
 
         (bool isComissionWidsdrawed, ) = owner.call{value: polls[pollName].meta.comission}("");
-        polls[pollName].meta.isComissionWidsdrawed == isComissionWidsdrawed;
+        polls[pollName].meta.isComissionWidsdrawed = isComissionWidsdrawed;
     }
 
     function vote(string memory pollName, address favoriteCandidate) public payable {
         require(polls[pollName].meta.startTime > 0, "Poll not found");
         require(polls[pollName].members[msg.sender] == false, "You alrady voted");
-        require(polls[pollName].meta.startTime + 3 days >= block.timestamp, "Poll is expired");
+        require(block.timestamp < polls[pollName].meta.startTime + 3 days, "Poll is expired");
         require(msg.value == voteCost, "You need to send 0.01 Ether");
         
         registerMemberInPoll(pollName, msg.sender);
@@ -63,17 +69,20 @@ contract Poll {
     function finish(string memory pollName) public {
         require(polls[pollName].meta.startTime > 0, "Poll not found");
         require(polls[pollName].meta.isFinished == false, "Poll allrady finished");
-        require(polls[pollName].meta.startTime + 3 days < block.timestamp, "Voting lasts less than 3 days");
+        require(block.timestamp >= polls[pollName].meta.startTime + 3 days, "Voting lasts less than 3 days");
         require(polls[pollName].members[msg.sender] == true, "You not poll member");
 
         uint _prize = getPrize(pollName);
         polls[pollName].meta.prize = _prize;
 
-        address payable _winner = payable(getWinner(pollName));
+        address payable _winner = payable(calcWinner(pollName));
 
         (bool isPrizePayed, ) = _winner.call{value: _prize}("");
 
         if(isPrizePayed){
+            polls[pollName].meta.comission = calcComission(pollName);
+            polls[pollName].meta.prize = _prize;
+            polls[pollName].meta.winner = _winner;
             polls[pollName].meta.isFinished = true;
         }
     }
@@ -90,7 +99,7 @@ contract Poll {
         return polls[pollName].meta.membersLUT;
     }
 
-    function getPollWinner(string memory pollName) public view returns(address) {
+    function getWinner(string memory pollName) public view returns(address) {
         return polls[pollName].meta.winner;
     }
 
@@ -105,20 +114,18 @@ contract Poll {
         polls[pollName].meta.membersLUT.push(member);
     }
 
-    function getPrize (string memory pollName) private returns (uint) {
+    function getPrize (string memory pollName) private view returns (uint) {
         uint _priseWithComission = polls[pollName].meta.membersLUT.length * voteCost;
-        uint _comission = calcComission(_priseWithComission);
-        
-        polls[pollName].meta.comission = _comission;
-
+        uint _comission = calcComission(pollName);
         return _priseWithComission - _comission;
     }
 
-    function calcComission (uint amount) private view returns (uint) {
-        return amount / 100 * comission;
+    function calcComission (string memory pollName) private view returns (uint) {
+        uint _priseWithComission = polls[pollName].meta.membersLUT.length * voteCost;
+        return _priseWithComission / 100 * comissionTax;
     }
 
-    function getWinner (string memory pollName) private view returns (address) {
+    function calcWinner (string memory pollName) private view returns (address) {
         address _winner;
         uint _maxVotes = 0;
 
