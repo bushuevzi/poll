@@ -4,15 +4,10 @@ import { ethers } from "hardhat";
 
 describe("Poll contract deploy", function(){
     let owner: Signer;
-    let member1: Signer;
-    let member2: Signer;
-    let member3: Signer;
-    let member4: Signer;
-    let member5: Signer;
     let poll: Contract;
 
     beforeEach(async function () {
-        [owner, member1, member2, member3, member4, member5] = await ethers.getSigners();
+        [owner] = await ethers.getSigners();
         const Poll = await ethers.getContractFactory("Poll", owner);
         poll = await Poll.deploy();
         await poll.deployed();
@@ -27,7 +22,3 @@ describe("Poll contract deploy", function(){
         expect(balance).to.eq(0);
     })
 })
-
-function getCurrentTime(): number {
-    return Math.floor(new Date().getTime() / 1000) 
-}

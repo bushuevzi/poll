@@ -42,7 +42,3 @@ describe("Poll widsdraw process", function(){
         assert.fail("Not implemented");
     })
 })
-
-function getCurrentTime(): number {
-    return Math.floor(new Date().getTime() / 1000) 
-}

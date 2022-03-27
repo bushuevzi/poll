@@ -43,21 +43,27 @@ contract Poll {
         require(polls[pollName].meta.comission == 0, "Comission is empty");
         require(polls[pollName].meta.isComissionWidsdrawed == false, "Comission was already widthdraw");
 
-        (bool isComissionWidsdrawed, )  = owner.call{value: polls[pollName].meta.comission}("");
+        (bool isComissionWidsdrawed, ) = owner.call{value: polls[pollName].meta.comission}("");
         polls[pollName].meta.isComissionWidsdrawed == isComissionWidsdrawed;
     }
 
     function vote(string memory pollName, address favoriteCandidate) public payable {
+        require(polls[pollName].meta.startTime > 0, "Poll not found");
+        require(polls[pollName].members[msg.sender] == false, "You alrady voted");
+        require(polls[pollName].meta.startTime + 3 days >= block.timestamp, "Poll is expired");
         require(msg.value == voteCost, "You need to send 0.01 Ether");
-
+        
         registerMemberInPoll(pollName, msg.sender);
+        
+        require(polls[pollName].members[favoriteCandidate] == true, "Favorite candidate is not a poll member");
+
         polls[pollName].votes[favoriteCandidate] += 1; // vote
     }
 
-    function finishPoll(string memory pollName) public {
-        require(polls[pollName].meta.startTime  > 0, "Poll not found");
+    function finish(string memory pollName) public {
+        require(polls[pollName].meta.startTime > 0, "Poll not found");
         require(polls[pollName].meta.isFinished == false, "Poll allrady finished");
-        require(polls[pollName].meta.startTime  + 3 days < block.timestamp, "Voting lasts less than 3 days");
+        require(polls[pollName].meta.startTime + 3 days < block.timestamp, "Voting lasts less than 3 days");
         require(polls[pollName].members[msg.sender] == true, "You not poll member");
 
         uint _prize = getPrize(pollName);

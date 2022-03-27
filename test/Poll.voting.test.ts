@@ -3,75 +3,102 @@ import { Contract, Signer } from "ethers";
 import { ethers } from "hardhat";
 
 describe("Poll voting process", function(){
-    let owner: Signer;
-    let member1: Signer;
-    let member2: Signer;
-    let member3: Signer;
-    let member4: Signer;
-    let member5: Signer;
-    let poll: Contract;
+    let _owner: Signer;
+    let _member1: Signer;
+    let _member2: Signer;
+    let _member3: Signer;
+    let _member4: Signer;
+    let _member5: Signer;
+    let _pollContract: Contract;
+    let _voteCost: any;
+    let _pollName: string = "First Poll";
 
     beforeEach(async function () {
-        [owner, member1, member2, member3, member4, member5] = await ethers.getSigners();
-        const Poll = await ethers.getContractFactory("Poll", owner);
-        poll = await Poll.deploy();
-        await poll.deployed();
+        await publishContract();
+        const nowTimeStamp = getCurrentTime();
+        await registerPoll(_pollName, nowTimeStamp);
+        _voteCost = getEtherVal("0.01", 18);
     })
 
     it("shoud be many members in poll", async () => {
-        assert.fail("Not implemented");
+        await _pollContract.connect(_member1).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+        await _pollContract.connect(_member2).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+
+        const firstPoll = await _pollContract.connect(_owner).getPoll(_pollName);
+        await expect(firstPoll.membersLUT.length).to.eq(2);
+    })
+
+    it("shoud correct payment for voting", async () => {
+        var votingTrx = _pollContract.connect(_member1).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+
+        await expect(() => votingTrx).to.changeEtherBalances([_member1, _pollContract], [(-(10**16)).toString(), (10**16).toString()]);
     })
 
     it("shoud reject wrong value of payment for voting", async () => {
-        assert.fail("Not implemented");
+        const wrongCost = getEtherVal("0.002", 18)
+        const voteTrx = _pollContract.connect(_member1).vote(_pollName, _member1.getAddress(), { value: wrongCost });
+
+        await expect(voteTrx).to.be.revertedWith("You need to send 0.01 Ether");
     })
 
-    it("shoud store votes from several members", async () => {
-        assert.fail("Not implemented");
+    it("shoud correct sum of votes", async () => {
+        await _pollContract.connect(_member1).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+        await _pollContract.connect(_member2).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+
+        const member1Votes = await _pollContract.connect(_owner).getMemberVotes(_pollName, _member1.getAddress());
+        const member2Votes = await _pollContract.connect(_owner).getMemberVotes(_pollName, _member2.getAddress());
+        
+        await expect(member1Votes).to.eq(2);
+        await expect(member2Votes).to.eq(0);
     })
 
     it("shoud reject double voting", async () => {
-        assert.fail("Not implemented");
+        await _pollContract.connect(_member1).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+        await _pollContract.connect(_member2).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+        const duplicateVotingTrx = _pollContract.connect(_member2).vote(_pollName, _member1.getAddress(), { value: _voteCost });
+
+        await expect(duplicateVotingTrx).to.be.revertedWith("You alrady voted");
     })
 
-    it("shoud reject voting in finishing poll", async () => {
-        assert.fail("Not implemented");
+    it("shoud reject voting for not existed member", async () => {
+        const votingForNotRegisteredCandidateTrx = _pollContract.connect(_member1).vote(_pollName, _member2.getAddress(), { value: _voteCost });
+
+        await expect(votingForNotRegisteredCandidateTrx).to.be.revertedWith("Favorite candidate is not a poll member");
+    })
+
+    it("shoud reject voting in not existed poll", async () => {
+        const votingInNotExsitingPollTrx = _pollContract.connect(_member1).vote("Wrong poll Name", _member2.getAddress(), { value: _voteCost });
+
+        await expect(votingInNotExsitingPollTrx).to.be.revertedWith("Poll not found");
     })
 
     it("shoud reject voting in expired poll", async () => {
-        assert.fail("Not implemented");
+        var oldPollName = "Old poll";
+        var oldStartDay = getCurrentTime() - 3*24*60*60;
+        await registerPoll(oldPollName, oldStartDay);
+        const votingInOldPoll = _pollContract.connect(_member2).vote(oldPollName, _member1.getAddress(), { value: _voteCost });
+
+        await expect(votingInOldPoll).to.be.revertedWith("Poll is expired");
     })
 
-    it("shoud allow finishing poll",async () => {
-        assert.fail("Not implemented");
-    })
-
-    it("shoud reject stop voting to non poll member", async () => {
-        assert.fail("Not implemented");
-    })
-
-    it("shoud pay prize to correct member-winner", async () => {
-        assert.fail("Not implemented");
-    })
-
-    it("shoud pay correct prize amount", async () => {
-        assert.fail("Not implemented");
-    })
-
-    it("shoud calculate and store poll comission", async () => {
-        assert.fail("Not implemented");
-    })
-
-    it("shoud reject widthdraw comission to non owner", async () => {
-        assert.fail("Not implemented");
-    })
-
-    it("shoud widthdraw comission to owner", async () => {
-        assert.fail("Not implemented");
-    })
-
+    function getEtherVal(input: string, decimals: number) {
+        return ethers.utils.parseUnits(input, decimals);
+    }
+    
+    async function registerPoll(pollName:string, startTime: number) {
+        await _pollContract.connect(_owner).createPoll(pollName, startTime);
+    }
+    
+    async function publishContract() {
+        [_owner, _member1, _member2, _member3, _member4, _member5] = await ethers.getSigners();
+        const Poll = await ethers.getContractFactory("Poll", _owner);
+        _pollContract = await Poll.deploy();
+        await _pollContract.deployed();
+    }
+    
+    function getCurrentTime(): number {
+        return Math.floor(new Date().getTime() / 1000) 
+    }
 })
 
-function getCurrentTime(): number {
-    return Math.floor(new Date().getTime() / 1000) 
-}
+
