@@ -108,8 +108,6 @@ contract Poll {
     }
 
     function registerMemberInPoll(string memory pollName, address member) private {
-        if(polls[pollName].members[member]) return;
-
         polls[pollName].members[member] = true;
         polls[pollName].meta.membersLUT.push(member);
     }
