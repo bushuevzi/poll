@@ -65,6 +65,39 @@ describe("Poll widsdraw process", function(){
         }
     })
 
+    it("shoud reject widthdraw if poll not existed", async () => {
+        const withdrawComissionTrx = _pollContract.connect(_owner).withdrawComission("Wrong Poll name");
+        await expect(withdrawComissionTrx).to.be.revertedWith("Poll not found");
+    })
+
+    it("shoud reject widthdraw comission if Poll not finished", async () => {
+        await registerOldPoll(3);
+        await voting();
+        await network.provider.send("evm_increaseTime", [3600])
+
+        try{
+            const withdrawComissionTrx = _pollContract.connect(_owner).withdrawComission(_pollName);
+            await expect(withdrawComissionTrx).to.be.revertedWith("Poll not finished");
+        }
+        finally{
+            await network.provider.send("evm_increaseTime", [-3600])
+        }
+    })
+
+    it("shoud reject widthdraw comission if commission empty", async () => {
+        await registerOldPoll(3);
+        await network.provider.send("evm_increaseTime", [3600])
+
+        try{
+            await _pollContract.connect(_member3).finish(_pollName);
+            const withdrawComissionTrx = _pollContract.connect(_owner).withdrawComission(_pollName);
+            await expect(withdrawComissionTrx).to.be.revertedWith("Comission is empty");
+        }
+        finally{
+            await network.provider.send("evm_increaseTime", [-3600])
+        }
+    })
+
     it("shoud reject duplicating widthdraw", async () => {
         await registerOldPoll(3);
         await voting();
@@ -100,22 +133,19 @@ describe("Poll widsdraw process", function(){
     function getEtherVal(input: string, decimals: number) {
         return ethers.utils.parseUnits(input, decimals);
     }
-
-    async function registerOldPoll(daysAgo: number) {
-        const timeWithout1Hour = (daysAgo-1)*24*60*60 + 23*60*60;
-        const oldTimeStamp = getCurrentTime() - timeWithout1Hour;
-        await registerPoll(_pollName, oldTimeStamp);
-    }
-    
-    async function registerPoll(pollName:string, startTime: number) {
-        await _pollContract.connect(_owner).createPoll(pollName, startTime);
-    }
-    
+       
     async function publishContract() {
         [_owner, _member1, _member2, _member3] = await ethers.getSigners();
         const Poll = await ethers.getContractFactory("Poll", _owner);
         _pollContract = await Poll.deploy();
         await _pollContract.deployed();
+    }
+
+    async function registerOldPoll(daysAgo: number) {
+        const timeWithout1Hour = (daysAgo-1)*24*60*60 + 23*60*60;
+        const oldTimeStamp = getCurrentTime() - timeWithout1Hour;
+        const candidates = [await _member1.getAddress(), await _member2.getAddress(), await _member3.getAddress()];
+        await _pollContract.connect(_owner).createPoll(_pollName, oldTimeStamp, candidates);
     }
     
     function getCurrentTime(): number {

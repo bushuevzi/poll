@@ -4,7 +4,8 @@ import "hardhat/console.sol";
 
 contract Poll {
     struct PollMeta{
-        address[] membersLUT;
+        address[] candidatesLUT;
+        address[] electorsLUT;
         address winner;
         uint prize;
         uint comission;
@@ -14,122 +15,127 @@ contract Poll {
     }
 
     struct PollFullInfo{
-        mapping (address => bool) members;
-        mapping (address => uint) votes;
         PollMeta meta;
+        // mappings for O(1) algorims
+        mapping (address => bool) electors;
+        mapping (address => bool) candidates;
+        mapping (address => uint) votes;   
     }
 
-    address public owner;
-    uint public voteCost = 0.01 ether;
-    uint public comissionTax = 10;
-    mapping (string => PollFullInfo) public polls;
-    string[] private pollsLUT;
+    address public _owner;
+    uint public _voteCost = 0.01 ether;
+    uint public _comissionTax = 10;
+    mapping (string => PollFullInfo) public _polls;
+    string[] private _pollsLUT;
 
     constructor() {
-        owner = msg.sender;
+        _owner = msg.sender;
     }
 
     function kill() external {
-        require(msg.sender == owner, "Only the owner can kill this contract");
-        selfdestruct(payable(owner));
+        require(msg.sender == _owner, "Only the owner can kill this contract");
+        selfdestruct(payable(_owner));
     }
 
-    function createPoll(string memory pollName, uint startTime) public {
-        require(msg.sender == owner, "You should be contract owner");
-        require(polls[pollName].meta.startTime == 0, "Poll exists");
-        
-        pollsLUT.push(pollName);
-        polls[pollName].meta.startTime = startTime;
-    }
+    function createPoll(string memory pollName, uint startTime, address[] memory candidates) public {
+        PollFullInfo storage targetPoll = _polls[pollName];
 
-    function withdrawComission(string memory pollName) public {
-        require(msg.sender == owner, "You should be contract owner");
-        require(polls[pollName].meta.startTime > 0, "Poll not found");
-        require(polls[pollName].meta.isFinished == true, "Poll not finished");
-        require(polls[pollName].meta.comission > 0, "Comission is empty");
-        require(polls[pollName].meta.isComissionWidsdrawed == false, "Comission was already widthdraw");
+        require(msg.sender == _owner, "You should be contract owner");
+        require(targetPoll.meta.startTime == 0, "Poll exists");
+        require(candidates.length > 0, "Candidates list empty");
 
-        (bool isComissionWidsdrawed, ) = owner.call{value: polls[pollName].meta.comission}("");
-        polls[pollName].meta.isComissionWidsdrawed = isComissionWidsdrawed;
+        for(uint i = 0; i < candidates.length; i++){
+            targetPoll.candidates[candidates[i]] = true;
+        }
+        targetPoll.meta.candidatesLUT = candidates;
+        targetPoll.meta.startTime = startTime;
+        _pollsLUT.push(pollName);
     }
 
     function vote(string memory pollName, address favoriteCandidate) public payable {
-        require(polls[pollName].meta.startTime > 0, "Poll not found");
-        require(polls[pollName].members[msg.sender] == false, "You alrady voted");
-        require(block.timestamp < polls[pollName].meta.startTime + 3 days, "Poll is expired");
-        require(msg.value == voteCost, "You need to send 0.01 Ether");
-        
-        registerMemberInPoll(pollName, msg.sender);
-        
-        require(polls[pollName].members[favoriteCandidate] == true, "Favorite candidate is not a poll member");
+        PollFullInfo storage targetPoll = _polls[pollName];
 
-        polls[pollName].votes[favoriteCandidate] += 1; // vote
+        require(targetPoll.meta.startTime > 0, "Poll not found");
+        require(targetPoll.electors[msg.sender] == false, "You alrady voted");
+        require(block.timestamp < targetPoll.meta.startTime + 3 days, "Poll is expired");
+        require(msg.value == _voteCost, "You need to send 0.01 Ether");
+                
+        require(targetPoll.candidates[favoriteCandidate] == true, "Favorite candidate is not a poll member");
+
+        targetPoll.electors[msg.sender] = true;
+        targetPoll.meta.electorsLUT.push(msg.sender);
+        targetPoll.votes[favoriteCandidate] += 1; // vote
     }
 
     function finish(string memory pollName) public {
-        require(polls[pollName].meta.startTime > 0, "Poll not found");
-        require(polls[pollName].meta.isFinished == false, "Poll allrady finished");
-        require(block.timestamp >= polls[pollName].meta.startTime + 3 days, "Voting lasts less than 3 days");
-        require(polls[pollName].members[msg.sender] == true, "You not poll member");
+        PollFullInfo storage targetPoll = _polls[pollName];
+
+        require(targetPoll.meta.startTime > 0, "Poll not found");
+        require(targetPoll.meta.isFinished == false, "Poll allrady finished");
+        require(block.timestamp >= targetPoll.meta.startTime + 3 days, "Voting lasts less than 3 days");
 
         uint _prize = getPrize(pollName);
-        polls[pollName].meta.prize = _prize;
-
         address payable _winner = payable(calcWinner(pollName));
+        _winner.transfer(_prize);
+        
+        targetPoll.meta.comission = calcComission(pollName);
+        targetPoll.meta.prize = _prize;
+        targetPoll.meta.winner = _winner;
+        targetPoll.meta.isFinished = true;
+    }
 
-        (bool isPrizePayed, ) = _winner.call{value: _prize}("");
+    function withdrawComission(string memory pollName) public {
+        PollFullInfo storage targetPoll = _polls[pollName];
 
-        if(isPrizePayed){
-            polls[pollName].meta.comission = calcComission(pollName);
-            polls[pollName].meta.prize = _prize;
-            polls[pollName].meta.winner = _winner;
-            polls[pollName].meta.isFinished = true;
-        }
+        require(msg.sender == _owner, "You should be contract owner");
+        require(targetPoll.meta.startTime > 0, "Poll not found");
+        require(targetPoll.meta.isFinished == true, "Poll not finished");
+        require(targetPoll.meta.comission > 0, "Comission is empty");
+        require(targetPoll.meta.isComissionWidsdrawed == false, "Comission was already widthdraw");
+
+        payable(_owner).transfer(targetPoll.meta.comission);
+        targetPoll.meta.isComissionWidsdrawed = true;
     }
 
     function getPolls() public view returns(string[] memory) {
-        return pollsLUT;
+        return _pollsLUT;
     }
 
     function getPoll(string memory pollName) public view returns(PollMeta memory) {
-        return polls[pollName].meta;
+        return _polls[pollName].meta;
     }
 
-    function getPollMembers(string memory pollName) public view returns(address[] memory) {
-        return polls[pollName].meta.membersLUT;
+    function getPollCandidates(string memory pollName) public view returns(address[] memory) {
+        return _polls[pollName].meta.candidatesLUT;
     }
 
     function getWinner(string memory pollName) public view returns(address) {
-        return polls[pollName].meta.winner;
+        return _polls[pollName].meta.winner;
     }
 
-    function getMemberVotes(string memory pollName, address member) public view returns(uint) {
-        return polls[pollName].votes[member];
+    function getVotesForCandidate(string memory pollName, address candidate) public view returns(uint) {
+        return _polls[pollName].votes[candidate];
     }
 
-    function registerMemberInPoll(string memory pollName, address member) private {
-        polls[pollName].members[member] = true;
-        polls[pollName].meta.membersLUT.push(member);
-    }
-
-    function getPrize (string memory pollName) private view returns (uint) {
-        uint _priseWithComission = polls[pollName].meta.membersLUT.length * voteCost;
+    function getPrize(string memory pollName) private view returns (uint) {
+        uint prizeWithComission = _polls[pollName].meta.electorsLUT.length * _voteCost;
         uint _comission = calcComission(pollName);
-        return _priseWithComission - _comission;
+        return prizeWithComission - _comission;
     }
 
     function calcComission (string memory pollName) private view returns (uint) {
-        uint _priseWithComission = polls[pollName].meta.membersLUT.length * voteCost;
-        return _priseWithComission / 100 * comissionTax;
+        uint _priseWithComission = _polls[pollName].meta.electorsLUT.length * _voteCost;
+        return _priseWithComission / 100 * _comissionTax;
     }
 
     function calcWinner (string memory pollName) private view returns (address) {
         address _winner;
         uint _maxVotes = 0;
+        PollFullInfo storage targetPoll = _polls[pollName];
 
-        for(uint i = 0; i < polls[pollName].meta.membersLUT.length; i++){
-            address _member = polls[pollName].meta.membersLUT[i];
-            uint _memberVotes = polls[pollName].votes[_member];
+        for(uint i = 0; i < targetPoll.meta.electorsLUT.length; i++){
+            address _member = targetPoll.meta.electorsLUT[i];
+            uint _memberVotes = targetPoll.votes[_member];
 
             if(_memberVotes >= _maxVotes) {
                 _winner = _member;

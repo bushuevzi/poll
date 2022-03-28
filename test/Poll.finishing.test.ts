@@ -135,9 +135,9 @@ describe("Poll finishing", function(){
         await network.provider.send("evm_increaseTime", [3600])
         try{
             await _pollContract.connect(_member3).finish(_pollName);
-            const member1Votes: number = parseInt(await _pollContract.connect(_member1).getMemberVotes(_pollName,await _member1.getAddress()));
-            const member2Votes: number = parseInt(await _pollContract.connect(_member2).getMemberVotes(_pollName,await _member2.getAddress()));
-            const member3Votes: number = parseInt(await _pollContract.connect(_member3).getMemberVotes(_pollName,await _member3.getAddress()));
+            const member1Votes: number = parseInt(await _pollContract.connect(_member1).getVotesForCandidate(_pollName,await _member1.getAddress()));
+            const member2Votes: number = parseInt(await _pollContract.connect(_member2).getVotesForCandidate(_pollName,await _member2.getAddress()));
+            const member3Votes: number = parseInt(await _pollContract.connect(_member3).getVotesForCandidate(_pollName,await _member3.getAddress()));
             
             expect(member1Votes).to.greaterThan(member2Votes);
             expect(member2Votes).to.greaterThan(member3Votes);
@@ -150,22 +150,19 @@ describe("Poll finishing", function(){
     function getEtherVal(input: string, decimals: number) {
         return ethers.utils.parseUnits(input, decimals);
     }
-
-    async function registerOldPoll(daysAgo: number) {
-        const timeWithout1Hour = (daysAgo-1)*24*60*60 + 23*60*60;
-        const oldTimeStamp = getCurrentTime() - timeWithout1Hour;
-        await registerPoll(_pollName, oldTimeStamp);
-    }
-    
-    async function registerPoll(pollName:string, startTime: number) {
-        await _pollContract.connect(_owner).createPoll(pollName, startTime);
-    }
-    
+   
     async function publishContract() {
         [_owner, _member1, _member2, _member3] = await ethers.getSigners();
         const Poll = await ethers.getContractFactory("Poll", _owner);
         _pollContract = await Poll.deploy();
         await _pollContract.deployed();
+    }
+
+    async function registerOldPoll(daysAgo: number) {
+        const timeWithout1Hour = (daysAgo-1)*24*60*60 + 23*60*60;
+        const oldTimeStamp = getCurrentTime() - timeWithout1Hour;
+        const candidates = [await _member1.getAddress(), await _member2.getAddress(), await _member3.getAddress()];
+        await _pollContract.connect(_owner).createPoll(_pollName, oldTimeStamp, candidates);
     }
     
     function getCurrentTime(): number {
