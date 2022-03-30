@@ -75,11 +75,22 @@ describe("Poll voting process", function(){
         await _contract.connect(_member1).vote(_pollName, await _member1.getAddress(), { value: _voteCost });
         await _contract.connect(_member2).vote(_pollName, await _member1.getAddress(), { value: _voteCost });
         
-        const pollMembers = await _contract.connect(_member1).getPollCandidates(_pollName);
+        const pollCandidates = await _contract.connect(_member1).getPollCandidates(_pollName);
 
-        expect(pollMembers.length).to.eq(3);
-        expect(pollMembers).to.include(await _member1.getAddress());
-        expect(pollMembers).to.include(await _member2.getAddress());
+        expect(pollCandidates.length).to.eq(3);
+        expect(pollCandidates).to.include(await _member1.getAddress());
+        expect(pollCandidates).to.include(await _member2.getAddress());
+    })
+
+    it("shoud show poll electors from view-function", async () => {
+        await _contract.connect(_member1).vote(_pollName, await _member1.getAddress(), { value: _voteCost });
+        await _contract.connect(_member2).vote(_pollName, await _member1.getAddress(), { value: _voteCost });
+        
+        const pollElectors = await _contract.connect(_member1).getElectors(_pollName);
+
+        expect(pollElectors.length).to.eq(2);
+        expect(pollElectors).to.include(await _member1.getAddress());
+        expect(pollElectors).to.include(await _member2.getAddress());
     })
 
     function getEtherVal(input: string, decimals: number) {

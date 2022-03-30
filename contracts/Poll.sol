@@ -109,6 +109,10 @@ contract Poll {
         return _polls[pollName].meta.candidatesLUT;
     }
 
+    function getElectors(string memory pollName) public view returns(address[] memory) {
+        return _polls[pollName].meta.electorsLUT;
+    }
+
     function getWinner(string memory pollName) public view returns(address) {
         return _polls[pollName].meta.winner;
     }
@@ -129,20 +133,20 @@ contract Poll {
     }
 
     function calcWinner (string memory pollName) private view returns (address) {
-        address _winner;
-        uint _maxVotes = 0;
+        address winner;
+        uint maxVotes = 0;
         PollFullInfo storage targetPoll = _polls[pollName];
 
-        for(uint i = 0; i < targetPoll.meta.electorsLUT.length; i++){
-            address _member = targetPoll.meta.electorsLUT[i];
-            uint _memberVotes = targetPoll.votes[_member];
+        for(uint i = 0; i < targetPoll.meta.candidatesLUT.length; i++){
+            address candidate = targetPoll.meta.candidatesLUT[i];
+            uint candidateVotes = targetPoll.votes[candidate];
 
-            if(_memberVotes >= _maxVotes) {
-                _winner = _member;
-                _maxVotes = _memberVotes;
+            if(candidateVotes >= maxVotes) {
+                winner = candidate;
+                maxVotes = candidateVotes;
             }
         }
 
-        return _winner;
+        return winner;
     }
 }
