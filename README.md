@@ -1,6 +1,6 @@
 # Poll - Test project
 
-[Tests coverage](/coverage/index.html)
+[Tests coverage](https://htmlpreview.github.io/?https://github.com/bushuevzi/poll/blob/main/coverage/index.html)
 
 1) npm install
 
