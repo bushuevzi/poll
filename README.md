@@ -29,7 +29,7 @@ npx hardhat  getWinner             View poll's winner
 
 **hardhat**
 ```
-npx hardhat  help                  Prints this message
+npx hardhat  help                  Prints this help
 npx hardhat  test                  Runs mocha tests
 npx hardhat  coverage              Generates a code coverage report for tests
 npx hardhat  compile               Compiles the entire project, building all artifacts
