@@ -1,5 +1,7 @@
 # Poll - Test project
 
+[Tests coverage](/coverage/index.html)
+
 1) npm install
 
 2) Try running some of the following tasks:
