@@ -19,10 +19,10 @@ npx hardhat  vote                  Vote for candidate
 npx hardhat  increasetime          Increase/decrease hardhat env time
 npx hardhat  finish                Finish poll
 npx hardhat  withdrawComission     Withdraw Comission
-npx hardhat  getElectors           View poll's electorate
-npx hardhat  getPoll               View polls info
-npx hardhat  getPollCandidates     View poll's candidates
 npx hardhat  getPolls              View all polls names in contract
+npx hardhat  getPoll               View polls info
+npx hardhat  getElectors           View poll's electorate
+npx hardhat  getPollCandidates     View poll's candidates
 npx hardhat  getVotesForCandidate  View number of votes for candidate
 npx hardhat  getWinner             View poll's winner
 ```
